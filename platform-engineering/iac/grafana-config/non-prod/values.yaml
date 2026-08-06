@@ -46,7 +46,7 @@ customResources:
         providerName: github
         oauth2Settings:
           - name: GitHub
-            enabled: true
+            enabled: false
             clientId: "Ov23ligqCtLU257TJj2k"
             clientSecretSecretRef:
               name: grafana-github-oauth
@@ -56,18 +56,30 @@ customResources:
             # without it Grafana cannot see the user's org membership and the
             # restriction silently does nothing.
             scopes: user:email,read:org
-            # TEMPORARY DIAGNOSTIC - revert once the cause is known.
-            # Every other layer verified clean (org policy approved, app
-            # authorised, credentials valid, redirect_uri exact), which leaves
-            # Grafana's own org-membership check. bainss's membership of
-            # polarpoint-io is PRIVATE, so if Grafana cannot see it this check
-            # fails while everything upstream looks fine.
+            # DISABLED. The flow is broken in a way that is not this config:
+            # GitHub returns a valid authorization code and Grafana rejects it
+            # with "Login provider denied login request" even with every
+            # authorization gate switched off - no org restriction, no role
+            # mapping, signup allowed, and the client secret written directly to
+            # the Grafana API rather than through Crossplane.
             #
-            # allowSignUp false is what makes dropping the restriction safe:
-            # only accounts that ALREADY exist in Grafana can sign in, so this
-            # does not let an arbitrary GitHub user create an account.
-            allowedOrganizations: ''
-            allowSignUp: false
+            # Verified clean, so do not re-check these: the org's OAuth policy
+            # has grafana-auth approved, the personal authorisation grants
+            # polarpoint-io, GitHub returns bad_verification_code for the
+            # credential pair (so id and secret are valid), and the redirect_uri
+            # Grafana sends is byte-identical to the registered callback.
+            #
+            # Last lead: no oauth_state cookie was present on the callback
+            # request. Grafana sets that when it starts the flow and compares it
+            # to the state parameter it got back - if the browser is not
+            # returning it, the login is refused no matter what is configured
+            # here. Worth trying a different browser before changing anything.
+            #
+            # Left enabled: false so a broken login path is not advertised on the
+            # sign-in page. The settings below are the intended ones - flip this
+            # to true once the cause is known.
+            allowedOrganizations: '["polarpoint-io"]'
+            allowSignUp: true
             autoLogin: false
             roleAttributePath: "'Admin'"
             allowAssignGrafanaAdmin: false
