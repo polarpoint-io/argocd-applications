@@ -25,13 +25,11 @@ metadata:
   name: descriptors
   namespace: argocd
 spec:
-  # Children stay manual-sync, as they were under the parents. The ApplicationSet
-  # owning them does not imply auto-sync of what they deploy.
   goTemplate: true
   # Required fields fail loudly rather than rendering empty. A dropped
   # targetRevision once left every git-sourced app silently tracking HEAD; an
   # empty string is the failure mode worth being noisy about. Optional fields are
-  # guarded with hasKey below so they do not trip this.
+  # guarded with hasKey in templatePatch so they do not trip this.
   goTemplateOptions: ["missingkey=error"]
   generators:
     - matrix:
@@ -75,6 +73,10 @@ spec:
               # directories that sit beside them.
               files:
                 - path: "apps/{{ .project }}/*/{{ .env }}.yaml"
+
+  # The invariant shape. Anything that varies in *structure* rather than value has
+  # to go in templatePatch below, because this block is a typed Application spec -
+  # it cannot grow conditional keys or a map with descriptor-supplied label names.
   template:
     metadata:
       name: "{{ .chart.name }}-{{ .env }}"
@@ -82,10 +84,27 @@ spec:
       labels:
         env: "{{ .env }}"
         app: "{{ .chart.name }}"
-        # Descriptor labels come last so they win, which is how the old Helm
-        # template behaved: ciso-assistant-manifests sets app=ciso-assistant and
-        # relies on overriding the line above. Reordering this renames labels on
-        # live objects.
+    spec:
+      project: "{{ .project }}"
+      source:
+        repoURL: "{{ .chart.url }}"
+      destination:
+        server: "{{ .destination }}"
+        namespace: "{{ .chart.namespace }}"
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+
+  # Merge-patched over the rendered Application. This is where the descriptor's own
+  # optional fields land, and the only place conditionals are possible.
+  #
+  # Descriptor labels are applied here, i.e. after the env/app labels above, so they
+  # still win - which is how the old Helm template behaved. ciso-assistant-manifests
+  # sets app=ciso-assistant and relies on overriding the generated app= value.
+  # Reordering this renames labels on live objects.
+  templatePatch: |
+    metadata:
+      labels:
         {{- range $k, $v := .labels }}
         {{ $k }}: "{{ $v }}"
         {{- end }}
@@ -96,11 +115,12 @@ spec:
         {{- end }}
       {{- end }}
     spec:
-      project: "{{ .project }}"
       source:
-        repoURL: "{{ .chart.url }}"
         {{- if hasKey .chart "path" }}
         path: "{{ .chart.path }}"
+        # Emitted for path-mode too. It used to be dropped here, so every
+        # git-sourced app silently tracked HEAD of the default branch. That stopped
+        # being survivable the moment several apps began sharing one chart.
         targetRevision: "{{ dig "targetRevision" "main" .chart }}"
         {{- else }}
         chart: "{{ .chart.name }}"
@@ -108,19 +128,12 @@ spec:
         {{- end }}
         {{- if hasKey . "values" }}
         helm:
-          values: |
-            {{- nindent 12 .values }}
+          values: |{{ nindent 12 .values }}
         {{- end }}
-      destination:
-        server: "{{ .destination }}"
-        namespace: "{{ .chart.namespace }}"
       {{- if hasKey . "ignoreDifferences" }}
       # For fields a controller legitimately owns after ArgoCD creates them.
-      # Without this the app sits OutOfSync forever and real drift gets lost in
-      # the noise - which defeats the point of watching sync status at all.
+      # Without this the app sits OutOfSync forever and real drift gets lost in the
+      # noise - which defeats the point of watching sync status at all.
       ignoreDifferences:
-        {{- toYaml .ignoreDifferences | nindent 8 }}
+        {{- toYaml .ignoreDifferences | nindent 4 }}
       {{- end }}
-      syncPolicy:
-        syncOptions:
-          - CreateNamespace=true
