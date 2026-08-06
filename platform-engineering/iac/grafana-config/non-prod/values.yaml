@@ -56,8 +56,18 @@ customResources:
             # without it Grafana cannot see the user's org membership and the
             # restriction silently does nothing.
             scopes: user:email,read:org
-            allowedOrganizations: '["polarpoint-io"]'
-            allowSignUp: true
+            # TEMPORARY DIAGNOSTIC - revert once the cause is known.
+            # Every other layer verified clean (org policy approved, app
+            # authorised, credentials valid, redirect_uri exact), which leaves
+            # Grafana's own org-membership check. bainss's membership of
+            # polarpoint-io is PRIVATE, so if Grafana cannot see it this check
+            # fails while everything upstream looks fine.
+            #
+            # allowSignUp false is what makes dropping the restriction safe:
+            # only accounts that ALREADY exist in Grafana can sign in, so this
+            # does not let an arbitrary GitHub user create an account.
+            allowedOrganizations: ''
+            allowSignUp: false
             autoLogin: false
             roleAttributePath: "'Admin'"
             allowAssignGrafanaAdmin: false
