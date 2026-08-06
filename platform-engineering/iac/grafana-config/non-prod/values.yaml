@@ -1,0 +1,63 @@
+# What the Grafana provider manages, as opposed to the provider itself.
+#
+# Deliberately a separate application from grafana-provider: the provider is an
+# install, this is configuration that will grow - SSO now, folders, dashboards
+# and alert rules later. Deleting the config should never uninstall the provider
+# underneath it, and rolling back a bad dashboard change should not touch the
+# controller that applies it.
+#
+# Everything here is a Crossplane managed resource, so it needs the provider
+# healthy and its ProviderConfig authenticated first. grafana-provider owns
+# waves 1-3; this starts at 4.
+
+externalSecrets:
+  # The GitHub OAuth app's client secret. SsoSettings takes it by reference
+  # rather than by value - clientSecretSecretRef below points here - so the
+  # secret never appears in git or in the managed resource's spec.
+  - secretName: grafana-github-oauth
+    namespace: iac
+    refreshInterval: 1h
+    annotations: {argocd.argoproj.io/sync-wave: "4"}
+    data:
+      - {secretKey: client-secret, remoteRef: {key: grafana-github-oauth, property: client-secret}}
+
+customResources:
+  # GitHub sign-in for https://polarpoint.grafana.net.
+  #
+  # Read allowedOrganizations before changing anything here. With allowSignUp
+  # true and NO organization restriction, any GitHub account on the internet can
+  # sign in and be created as a user - that is the dangerous default this exists
+  # to avoid. The org restriction is what makes allowSignUp safe.
+  #
+  # roleAttributePath is a literal 'Admin', so every member of the org becomes a
+  # Grafana Admin: able to edit datasources and permissions, not just dashboards.
+  # That is a deliberate choice for a small org. If the org grows, move this to
+  # 'Editor' and promote individuals, or narrow the login with teamIds.
+  #
+  # allowAssignGrafanaAdmin stays false - that is *server* admin, a wider thing
+  # again than the org Admin role above, and nothing here needs it.
+  - apiVersion: oss.grafana.crossplane.io/v1alpha1
+    kind: SsoSettings
+    metadata:
+      name: github-sso-settings
+      annotations: {argocd.argoproj.io/sync-wave: "5"}
+    spec:
+      forProvider:
+        providerName: github
+        oauth2Settings:
+          - name: GitHub
+            enabled: true
+            clientId: "REPLACE_ME_github_oauth_client_id"
+            clientSecretSecretRef:
+              name: grafana-github-oauth
+              namespace: iac
+              key: client-secret
+            # read:org is required for allowedOrganizations to be enforceable -
+            # without it Grafana cannot see the user's org membership and the
+            # restriction silently does nothing.
+            scopes: user:email,read:org
+            allowedOrganizations: '["polarpoint-io"]'
+            allowSignUp: true
+            autoLogin: false
+            roleAttributePath: "'Admin'"
+            allowAssignGrafanaAdmin: false
