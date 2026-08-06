@@ -1,0 +1,69 @@
+# Crossplane's Grafana provider - Grafana Cloud config as IaC.
+#
+# This is the other half of the observability story and does the opposite job to
+# Alloy. Alloy ships telemetry OUT to Grafana Cloud; this manages what Grafana
+# Cloud looks like - folders, dashboards, datasources, alert rules, contact
+# points - as Kubernetes objects, so they are reviewed and reproducible rather
+# than clicked into a UI and lost.
+#
+# EXPERIMENTAL, in Grafana Labs' own words: "It is not meant to be used in
+# production environments, and the risks are unknown/high", with no SLA. Fine
+# for a lab; read that sentence again before it ends up under a client.
+#
+# Runs on the controller cluster, where Crossplane lives, in the same `iac`
+# namespace as the AWS provider. Sync waves follow the pattern next door: the
+# provider installs first, its credentials land second, and the ProviderConfig
+# that references them comes last - a ProviderConfig applied before its secret
+# exists just sits there failing to authenticate.
+
+externalSecrets:
+  - secretName: grafana-provider-credentials
+    namespace: iac
+    refreshInterval: 1h
+    annotations: {argocd.argoproj.io/sync-wave: "2"}
+    # The provider wants ONE key holding a JSON document, not separate keys -
+    # it is upjet-generated over the Terraform provider, which takes its whole
+    # configuration as a block. The template assembles that from the individual
+    # properties in the secret store, so the store keeps ordinary named values
+    # and nothing has to hand-maintain a blob of JSON.
+    template:
+      data:
+        credentials: |
+          {
+            "cloud_access_policy_token": "{{ .cloudAccessPolicyToken }}",
+            "url": "{{ .url }}",
+            "auth": "{{ .serviceAccountToken }}"
+          }
+    data:
+      # A Cloud Access Policy token, for stack-level resources.
+      - {secretKey: cloudAccessPolicyToken, remoteRef: {key: grafana-provider, property: cloud-access-policy-token}}
+      # The stack's own Grafana URL, e.g. https://<stack>.grafana.net
+      - {secretKey: url, remoteRef: {key: grafana-provider, property: url}}
+      # A Grafana service account token, for things inside the stack such as
+      # folders and dashboards. Separate from the Access Policy token above:
+      # they authenticate to different APIs.
+      - {secretKey: serviceAccountToken, remoteRef: {key: grafana-provider, property: service-account-token}}
+
+customResources:
+  - apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    metadata:
+      name: provider-grafana
+      annotations: {argocd.argoproj.io/sync-wave: "1"}
+    spec:
+      package: xpkg.upbound.io/grafana/provider-grafana:v2.13.0
+      packagePullPolicy: IfNotPresent
+      revisionActivationPolicy: Automatic
+
+  - apiVersion: grafana.crossplane.io/v1beta1
+    kind: ProviderConfig
+    metadata:
+      name: default
+      annotations: {argocd.argoproj.io/sync-wave: "3"}
+    spec:
+      credentials:
+        source: Secret
+        secretRef:
+          namespace: iac
+          name: grafana-provider-credentials
+          key: credentials
