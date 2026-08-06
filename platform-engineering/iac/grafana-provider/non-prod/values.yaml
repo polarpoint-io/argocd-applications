@@ -55,11 +55,20 @@ customResources:
       packagePullPolicy: IfNotPresent
       revisionActivationPolicy: Automatic
 
+  # SkipDryRunOnMissingResource is what makes the first install possible at all.
+  # ArgoCD dry-runs every resource in the app before applying any of them, and
+  # this kind does not exist until the Provider above has installed and
+  # registered its CRDs - so without it the whole sync is rejected upfront with
+  # "could not find the requested resource" and even the Provider never applies.
+  # The wave ordering then does the rest: by the time wave 3 applies, wave 1 is
+  # Healthy and the CRD is real.
   - apiVersion: grafana.crossplane.io/v1beta1
     kind: ProviderConfig
     metadata:
       name: default
-      annotations: {argocd.argoproj.io/sync-wave: "3"}
+      annotations:
+        argocd.argoproj.io/sync-wave: "3"
+        argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     spec:
       credentials:
         source: Secret
