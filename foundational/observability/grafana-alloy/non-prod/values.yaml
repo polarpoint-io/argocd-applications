@@ -1,0 +1,114 @@
+# Grafana Alloy - the only telemetry collector in the estate. There is no
+# self-hosted Prometheus or Grafana; everything ships to Grafana Cloud.
+#
+# Credentials come from the `grafana-cloud` Secret, created by the
+# grafana-alloy-manifests ExternalSecret. Until the backing store actually holds
+# a grafana-cloud entry, Alloy will start and fail to authenticate - that is
+# expected, and the reason this app is left unsynced until the secret exists.
+#
+# The cluster name is NOT in this file. A values file fetched from git gets no
+# per-cluster substitution - {{cluster}} and {{short}} are expanded by the
+# ApplicationSet generator, which only touches the inline `values:` block. So the
+# cluster label is injected as CLUSTER_NAME from there and read back here with
+# sys.env, which is why every series is still distinguishable per cluster.
+
+alloy:
+  configMap:
+    content: |
+      logging {
+        level  = "info"
+        format = "logfmt"
+      }
+
+      remote.kubernetes.secret "grafana_cloud" {
+        namespace = "grafana-alloy"
+        name      = "grafana-cloud"
+      }
+
+      // ---- metrics -------------------------------------------------------
+      prometheus.remote_write "grafana_cloud" {
+        endpoint {
+          url = nonsensitive(remote.kubernetes.secret.grafana_cloud.data["prometheus-url"])
+          basic_auth {
+            username = nonsensitive(remote.kubernetes.secret.grafana_cloud.data["prometheus-username"])
+            password = remote.kubernetes.secret.grafana_cloud.data["api-token"]
+          }
+        }
+        external_labels = {
+          cluster = sys.env("CLUSTER_NAME"),
+        }
+      }
+
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      // Only scrape pods that ask to be scraped. Without this filter Alloy
+      // attempts every pod in the estate and most of the resulting series are
+      // failed scrapes, which costs Grafana Cloud ingest for no signal.
+      discovery.relabel "annotated_pods" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+          regex         = "true"
+          action        = "keep"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+      }
+
+      prometheus.scrape "annotated_pods" {
+        targets    = discovery.relabel.annotated_pods.output
+        forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+      }
+
+      // ---- logs ----------------------------------------------------------
+      loki.write "grafana_cloud" {
+        endpoint {
+          url = nonsensitive(remote.kubernetes.secret.grafana_cloud.data["loki-url"])
+          basic_auth {
+            username = nonsensitive(remote.kubernetes.secret.grafana_cloud.data["loki-username"])
+            password = remote.kubernetes.secret.grafana_cloud.data["api-token"]
+          }
+        }
+        external_labels = {
+          cluster = sys.env("CLUSTER_NAME"),
+        }
+      }
+
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+      }
+
+      loki.source.kubernetes "pod_logs" {
+        targets    = discovery.relabel.pod_logs.output
+        forward_to = [loki.write.grafana_cloud.receiver]
+      }
+
+# One collector per node: node-level metrics and every pod's logs are read from
+# the node's filesystem, which a Deployment could not do.
+controller:
+  type: daemonset
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+    - effect: NoExecute
+      operator: Exists

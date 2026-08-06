@@ -1,0 +1,37 @@
+# Falco - runtime threat detection, one DaemonSet per node.
+#
+# modern_ebpf needs no kernel headers and no compiled driver, which matters on
+# RKE2 where the alternative is building a module per node and rebuilding it on
+# every kernel bump. Requires kernel >= 5.8; these nodes are well past that.
+driver:
+  enabled: true
+  kind: modern_ebpf
+
+# Falcosidekick is what turns a detection into something anyone sees. Left off
+# until there is somewhere to send events - a webhook with no destination is
+# worse than nothing, because it looks configured.
+falcosidekick:
+  enabled: false
+
+collectors:
+  # RKE2 uses containerd, not docker.
+  docker:
+    enabled: false
+  containerd:
+    enabled: true
+    socket: /run/k3s/containerd/containerd.sock
+
+falco:
+  # Plain-text output is unreadable in aggregate; JSON is what a log pipeline can
+  # actually parse once Alloy is shipping.
+  json_output: true
+  json_include_output_property: true
+  log_level: info
+
+# Falco is a per-node agent - it has to tolerate control-plane nodes too, or it
+# silently monitors only the workers.
+tolerations:
+  - effect: NoSchedule
+    operator: Exists
+  - effect: NoExecute
+    operator: Exists

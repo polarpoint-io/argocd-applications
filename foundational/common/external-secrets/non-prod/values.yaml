@@ -1,0 +1,6 @@
+# External Secrets Operator. Every ExternalSecret in the estate depends on it.
+#
+# This is exactly what the hand-installed Helm release was running before ArgoCD
+# adopted it, recovered from its release secret rather than guessed - so the
+# adoption changed nothing but the version.
+installCRDs: true
