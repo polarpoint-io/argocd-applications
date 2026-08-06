@@ -3,9 +3,18 @@
 # modern_ebpf needs no kernel headers and no compiled driver, which matters on
 # RKE2 where the alternative is building a module per node and rebuilding it on
 # every kernel bump. Requires kernel >= 5.8; these nodes are well past that.
+# auto, not modern_ebpf. The estate is mixed: controller and tooling are all on
+# kernel 6.8, but multitenant still has two Ubuntu 20.04 nodes on 5.4 left from
+# the RKE1 lineage. modern_ebpf needs the BPF ring buffer, which landed in 5.8,
+# so on those two the pod came up and then died with
+# "libpman: ring buffer map type is not supported (errno 22)".
+#
+# auto probes what each node can actually run - modern_ebpf where the kernel
+# allows, falling back to the legacy probe - so one DaemonSet covers a fleet that
+# is midway through a kernel upgrade. Worth revisiting once nothing is on 5.4.
 driver:
   enabled: true
-  kind: modern_ebpf
+  kind: auto
 
 # Falcosidekick is what turns a detection into something anyone sees. Left off
 # until there is somewhere to send events - a webhook with no destination is
