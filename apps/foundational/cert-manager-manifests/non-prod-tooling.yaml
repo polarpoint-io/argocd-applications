@@ -1,0 +1,11 @@
+chart:
+  name: cert-manager-manifests
+  path: apps/foundational/cert-manager-manifests/non-prod-tooling
+  url: git@github.com:polarpoint-io/argocd-applications.git
+  targetRevision: main
+  recurseDirectory: false
+  namespace: cert-manager
+
+labels:
+  service: foundational
+  app: cert-manager

@@ -1,0 +1,38 @@
+# Plain manifests (XRD + all 4 platform Compositions + the Atlas
+# ProviderConfig/ExternalSecret), not a chart - ArgoCD applies the
+# directory as-is. Placed on the CONTROLLER cluster deliberately, NOT
+# tooling: the XRD/Compositions are cluster-scoped and must live where
+# Crossplane's controller actually runs, which in this org is controller
+# (see argocd-controller-applications/releases/apps/iac/crossplane).
+#
+# Sync order: psmdb-operator-crds -> psmdb-operator -> this.
+#
+# KNOWN GAPS - read before applying examples/claim.yaml:
+# 1. The Atlas ExternalSecret/ProviderConfig in this repo's manifests/ are
+#    only relevant to the azure/aws/gcp platforms. We use `baremetal`
+#    (Percona Server for MongoDB operator, no cloud managed service, no
+#    Atlas API key needed) - this org runs entirely on bare-metal RKE2.
+# 2. Upstream's own README: "Connection-secret assembly is a placeholder
+#    ... a claim will come up without a usable URI until that lands." Even
+#    once wired up, MONGO_URI will be missing from the resulting secret -
+#    only MONGO_HOST/MONGO_USERNAME/MONGO_PASSWORD will populate.
+# 3. Cross-cluster gap: this Application (and any MongoState claim you
+#    apply) lives on the CONTROLLER cluster, but platform-agent-stack's
+#    swarm pod (which reads the `agent-swarm-state` secret) runs on the
+#    TOOLING cluster. Plain Kubernetes Secrets don't cross clusters -
+#    nothing here bridges that yet. Until it's bridged (e.g. a
+#    ClusterSecretStore on tooling pointed at the controller cluster's
+#    API), the claim's resulting secret never reaches the swarm.
+# Given both (2) and (3), platform-agent-stack's MONGO_URI env var stays
+# unset (its secretKeyRef is optional: true) - the swarm runs fine without
+# persistent state until this is deliberately finished.
+chart:
+  name: mongostate-crossplane
+  url: git@github.com:polarpoint-io/mongostate-crossplane.git
+  path: manifests
+  targetRevision: main
+  namespace: crossplane-system
+
+labels:
+  service: controller
+  app: mongostate-crossplane

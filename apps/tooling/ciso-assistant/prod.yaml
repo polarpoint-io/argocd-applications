@@ -1,0 +1,48 @@
+# NOT YET WIRED INTO ARGOCD. This file exists so Kargo's "prod" Stage
+# (see argocd-controller-applications' kargo-projects/ciso-assistant) has a
+# git target to bump on every promotion, ready the moment the prod cluster
+# exists. Still needed before this actually deploys anything:
+#   1. Build the prod cluster, register it under argocd-core's `clusters:`.
+#   2. Add a `prod`-env parent Application (e.g. tooling-applications-prod)
+#      to argocd-core's `projects[].applications`, valuesFile pointing at a
+#      new global-values-prod-tooling.yaml with this destination server.
+#   3. Give CISO Assistant its own prod domain (not grc.polarpoint.io -
+#      that's non-prod's) and stand up ciso-assistant-postgres +
+#      ciso-assistant-manifests equivalents for prod (new dedicated DB,
+#      new TLS cert/tailscale device, new DNS record).
+#   4. Seed a prod-cluster secrets-store 'ciso-assistant' secret (db
+#      password + django key - generate fresh, don't reuse non-prod's).
+chart:
+  name: ciso-assistant
+  url: ghcr.io/intuitem/helm-charts/ce
+  targetRevision: 0.11.4
+  namespace: ciso-assistant
+
+labels:
+  service: tooling
+  app: ciso-assistant
+
+annotations:
+  kargo.akuity.io/authorized-stage: "ciso-assistant-promotion:prod"
+
+values: |
+  fullnameOverride: ciso-assistant
+
+  global:
+    domain: TODO-set-prod-domain.polarpoint.io
+    tls: true
+
+  backend:
+    config:
+      emailAdmin: surj@polarpoint.io
+      databaseType: externalPgsql
+      djangoExistingSecretKey: ciso-assistant-django
+
+  externalPgsql:
+    host: ciso-assistant-postgres
+    user: ciso-assistant
+    database: ciso-assistant
+    existingSecret: ciso-assistant-db
+
+  ingress:
+    enabled: false

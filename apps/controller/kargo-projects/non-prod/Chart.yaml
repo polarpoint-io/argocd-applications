@@ -1,0 +1,4 @@
+apiVersion: v2
+name: kargo-projects
+description: Kargo Project/Warehouse/Stage/ProjectConfig CRs for all non-prod->prod promotion pipelines
+version: 0.1.0

@@ -1,0 +1,47 @@
+chart:
+  name: temporal
+  url: https://go.temporal.io/helm-charts/
+  targetRevision: 1.6.0
+  namespace: postiz
+
+labels:
+  service: tooling
+  app: temporal
+
+values: |
+  nameOverride: temporal
+
+  server:
+    config:
+      persistence:
+        defaultStore: default
+        visibilityStore: visibility
+        numHistoryShards: 4
+        datastores:
+          default:
+            sql:
+              createDatabase: true
+              manageSchema: true
+              pluginName: postgres12_pgx
+              driverName: postgres12_pgx
+              databaseName: temporal
+              connectAddr: "postiz-postgresql:5432"
+              connectProtocol: tcp
+              user: postgres
+              existingSecret: postiz-db
+              secretKey: postgres-password
+          visibility:
+            sql:
+              createDatabase: true
+              manageSchema: true
+              pluginName: postgres12_pgx
+              driverName: postgres12_pgx
+              databaseName: temporal_visibility
+              connectAddr: "postiz-postgresql:5432"
+              connectProtocol: tcp
+              user: postgres
+              existingSecret: postiz-db
+              secretKey: postgres-password
+
+  web:
+    enabled: false   # no public UI needed; enable later if wanted

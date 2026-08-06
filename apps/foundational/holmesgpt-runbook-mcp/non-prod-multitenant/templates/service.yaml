@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: holmesgpt-runbook-mcp
+  namespace: holmesgpt
+  labels: {app: holmesgpt-runbook-mcp}
+spec:
+  selector: {app: holmesgpt-runbook-mcp}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP

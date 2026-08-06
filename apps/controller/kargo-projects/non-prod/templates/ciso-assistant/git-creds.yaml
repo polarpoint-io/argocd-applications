@@ -1,0 +1,29 @@
+# Reuses the SAME polarpoint-io deploy key already seeded in secrets-store for
+# ArgoCD's own repo access (see argocd-app-of-apps' private-git-credentials-
+# templates.yaml - secrets-store key 'github-credentials', property
+# 'github-ssh-access-private-key') - not a separate credential.
+# NOTE: Kargo deprecated sshPrivateKey creds as of v1.10.0 (removal slated for
+# v1.13.0, currently on v1.11.0) - fine for now, but plan to switch this to an
+# HTTPS+PAT credential before upgrading past v1.12.x.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: polarpoint-io-git-creds
+  namespace: ciso-assistant-promotion
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: {name: cluster-secrets-store, kind: ClusterSecretStore}
+  target:
+    name: polarpoint-io-git-creds
+    template:
+      metadata:
+        labels:
+          kargo.akuity.io/cred-type: git
+      data:
+        repoURL: git@github.com:polarpoint-io/argocd-tooling-applications.git
+        sshPrivateKey: "{{`{{.sshPrivateKey | toString}}`}}"
+  data:
+    - secretKey: sshPrivateKey
+      remoteRef: {key: github-credentials, property: github-ssh-access-private-key}

@@ -1,0 +1,4 @@
+secretStore: cluster-secrets-store
+host: platform.polarpoint.io
+issuer: letsencrypt-dns01
+backstageService: backstage   # ClusterIP, port 7007

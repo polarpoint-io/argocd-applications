@@ -1,0 +1,55 @@
+chart:
+  name: backstage
+  url: https://backstage.github.io/charts
+  targetRevision: 2.8.2
+  namespace: platform
+
+labels:
+  service: platform
+  app: backstage
+
+syncPolicy:
+  prune: false
+  selfHeal: false
+
+values: |
+  fullnameOverride: backstage
+
+  global:
+    security:
+      allowInsecureImages: true
+
+  backstage:
+    image:
+      registry: ghcr.io
+      repository: polarpoint-io/backstage
+      tag: "latest"
+      pullPolicy: Always
+    containerPorts:
+      backend: 7007
+    command: ["node", "packages/backend"]
+    args: ["--config", "app-config.yaml", "--config", "app-config.production.yaml"]
+    extraEnvVars:
+      - name: POSTGRES_HOST
+        value: backstage-postgresql
+    extraEnvVarsSecrets:
+      - backstage-database-authentication
+      - backstage-kubernetes-authentication
+      - backstage-github-authentication
+    # app-config.yaml / app-config.production.yaml are baked into the image
+    # (see args above) — do NOT mount the old RKE1-era backstage-app-config
+    # ConfigMap over them, it silently shadows every config change baked
+    # into new image builds.
+
+  postgresql:
+    enabled: true
+    fullnameOverride: backstage-postgresql
+    image:
+      repository: bitnamilegacy/postgresql
+    auth:
+      username: backstage
+      database: backstage
+      existingSecret: backstage-db
+    primary:
+      persistence:
+        size: 8Gi

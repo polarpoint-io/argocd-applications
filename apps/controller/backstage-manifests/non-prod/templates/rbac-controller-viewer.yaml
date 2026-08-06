@@ -1,0 +1,44 @@
+# Read-only ServiceAccount for Backstage to inspect the controller cluster
+# itself (where Backstage's own pod runs, and where Crossplane lives).
+# Mirrors the existing "backstage-viewer" SA on the tooling cluster used for
+# the tooling entry in kubernetes.clusterLocatorMethods.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backstage-controller-viewer
+  namespace: platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backstage-controller-viewer
+rules:
+  - apiGroups: ['*']
+    resources: ['*']
+    verbs: ['get', 'list', 'watch']
+  - nonResourceURLs: ['*']
+    verbs: ['get']
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage-controller-viewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backstage-controller-viewer
+subjects:
+  - kind: ServiceAccount
+    name: backstage-controller-viewer
+    namespace: platform
+---
+# Long-lived (non-expiring) token, same pattern as the pre-1.24-style
+# tooling cluster SA token used elsewhere in this project.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backstage-controller-viewer-token
+  namespace: platform
+  annotations:
+    kubernetes.io/service-account.name: backstage-controller-viewer
+type: kubernetes.io/service-account-token

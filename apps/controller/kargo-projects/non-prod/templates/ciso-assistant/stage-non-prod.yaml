@@ -1,0 +1,59 @@
+# NOTE: this org's app-of-apps design has an extra indirection layer versus
+# Kargo's typical docs example - each per-env descriptor (e.g. ciso-assistant/
+# non-prod.yaml) is rendered by the PARENT Application ("tooling-applications")
+# into the CHILD Application's ("ciso-assistant-non-prod") inline helm values/
+# targetRevision - the child never reads git directly itself. So a promotion
+# must sync the parent first (to regenerate the child's spec with the new
+# targetRevision) THEN the child (to actually deploy it) - same two-step
+# pattern this session hit manually multiple times. Listed in that order below;
+# argocd-update is expected to process apps sequentially, gating each on health.
+#
+# IMPORTANT: this file is deployed via a Helm chart (chart.path mode), and
+# Helm's own templating engine also scans this file - so every Kargo dollar-
+# brace expression below must be wrapped in a Go raw-string action or Helm
+# tries (and fails) to parse it as its own template syntax.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: non-prod
+  namespace: ciso-assistant-promotion
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: ciso-assistant
+      sources:
+        direct: true
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: git-clone
+          config:
+            repoURL: git@github.com:polarpoint-io/argocd-tooling-applications.git
+            checkout:
+              - branch: main
+                path: ./src
+        - uses: yaml-update
+          as: update
+          config:
+            path: ./src/releases/apps/platform/ciso-assistant/non-prod.yaml
+            updates:
+              - key: chart.targetRevision
+                value: "${{`{{ chartFrom(\"oci://ghcr.io/intuitem/helm-charts/ce/ciso-assistant\", warehouse(\"ciso-assistant\")).Version }}`}}"
+        - uses: git-commit
+          as: commit
+          config:
+            path: ./src
+            message: "${{`{{ outputs.update.commitMessage }}`}}"
+        - uses: git-push
+          config:
+            path: ./src
+        - uses: argocd-update
+          config:
+            apps:
+              - name: tooling-applications
+                namespace: argocd
+              - name: ciso-assistant-non-prod
+                namespace: argocd

@@ -1,0 +1,4 @@
+secretStore: cluster-secrets-store
+# secrets-store secret 'tailscale-oauth' must contain keys:
+#   client_id, client_secret  (Tailscale OAuth client with Devices write scope)
+remoteKey: tailscale-oauth

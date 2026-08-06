@@ -1,0 +1,57 @@
+# Subscribes to freight only after it's been through non-prod (not directly
+# to the Warehouse). The final argocd-update step targets "ciso-assistant-prod"
+# - this Application does NOT exist yet (no prod cluster, no parent app
+# rendering env: prod files - see releases/apps/platform/ciso-assistant/
+# prod.yaml in argocd-tooling-applications for what's still needed). Every
+# auto-promotion attempt will git-commit+push the version bump successfully,
+# then fail at this last step until that scaffolding is completed - expected
+# and harmless; the point is the git side is fully ready to go.
+#
+# IMPORTANT: this file is deployed via a Helm chart (chart.path mode), and
+# Helm's own templating engine also scans this file - so every Kargo dollar-
+# brace expression below must be wrapped in a Go raw-string action or Helm
+# tries (and fails) to parse it as its own template syntax.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: prod
+  namespace: ciso-assistant-promotion
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: ciso-assistant
+      sources:
+        stages:
+          - non-prod
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: git-clone
+          config:
+            repoURL: git@github.com:polarpoint-io/argocd-tooling-applications.git
+            checkout:
+              - branch: main
+                path: ./src
+        - uses: yaml-update
+          as: update
+          config:
+            path: ./src/releases/apps/platform/ciso-assistant/prod.yaml
+            updates:
+              - key: chart.targetRevision
+                value: "${{`{{ chartFrom(\"oci://ghcr.io/intuitem/helm-charts/ce/ciso-assistant\", warehouse(\"ciso-assistant\")).Version }}`}}"
+        - uses: git-commit
+          as: commit
+          config:
+            path: ./src
+            message: "${{`{{ outputs.update.commitMessage }}`}}"
+        - uses: git-push
+          config:
+            path: ./src
+        - uses: argocd-update
+          config:
+            apps:
+              - name: ciso-assistant-prod
+                namespace: argocd

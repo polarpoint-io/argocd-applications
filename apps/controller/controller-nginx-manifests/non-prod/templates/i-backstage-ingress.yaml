@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backstage-ingress
+  namespace: platform
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-production"
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  rules:
+  - http:
+      paths:
+      - pathType: ImplementationSpecific
+        path: /
+        backend:
+          service:
+            name: backstage-non-prod
+            port:
+              number: 80
+    host: platform.polarpoint.io
+  tls:
+  - hosts:
+    - platform.polarpoint.io
+    secretName: nginx-ssl-platform

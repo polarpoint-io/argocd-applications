@@ -1,0 +1,66 @@
+# Sourced from github.com/polarpoint-io/platform-agent-stack argocd/non-prod.yaml
+#
+# Schema matches releases/templates/children-applications.yaml: when
+# chart.path is set the source is treated as a git repo at that path.
+# The chart lives under charts/platform-agent-stack/ (not repo root -
+# root also holds bridge/, the custom MCP bridge service and its own
+# Dockerfile/CI - see that repo's bridge/README.md).
+chart:
+  name: platform-agent-stack
+  url: git@github.com:polarpoint-io/platform-agent-stack.git
+  path: charts/platform-agent-stack
+  targetRevision: main
+  namespace: agents
+
+# The tailscale operator rewrites the egress Service's externalName from our
+# placeholder to the real proxy address, so ArgoCD sees drift on every refresh
+# and the app never returns to Synced. The operator owns that field once the
+# Service exists.
+ignoreDifferences:
+  - group: ""
+    kind: Service
+    name: mongo-egress
+    jsonPointers:
+      - /spec/externalName
+
+labels:
+  service: tooling
+  app: platform-agent-stack
+
+values: |
+  itsmProvider: freshservice
+  llmProvider: anthropic
+
+  # image.repository/tag intentionally not overridden here - the chart's
+  # own values.yaml points at ghcr.io/polarpoint-io/platform-agent-bridge,
+  # built by this repo's own CI. Bump the chart default, not here, when
+  # a new image is published.
+
+  externalSecrets:
+    enabled: true
+    secretStoreRef:
+      name: cluster-secrets-store
+      kind: ClusterSecretStore
+
+  # Durable state for the tier-3 approval queue and the /triage job queue.
+  # Without this both are in-memory: a pod restart drops parked approvals and
+  # queued work, and /status reports durableState:false.
+  #
+  # Reads mongostate-crossplane's connection secret off the CONTROLLER cluster
+  # (Crossplane only runs there) via a ClusterSecretStore this chart creates,
+  # authenticating as controller's tooling-mongostate-reader ServiceAccount.
+  # The token for it is seeded by hand into agents/controller-mongostate-reader-token
+  # on this cluster - it is the one credential here that comes from another
+  # cluster's kubectl rather than a SaaS provider.
+  mongoState:
+    enabled: true
+    # The address inside the connection secret only resolves on controller, so
+    # the chart creates a tailnet egress Service and points the driver there.
+    # Paired with the tailscale.com/expose Service in mongostate-crossplane.
+    tailnetFqdn: agent-swarm-state.taildb4160.ts.net
+    controllerApiServer: "https://192.168.11.70:6443"
+    controllerCaBundle: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJlVENDQVIrZ0F3SUJBZ0lCQURBS0JnZ3Foa2pPUFFRREFqQWtNU0l3SUFZRFZRUUREQmx5YTJVeUxYTmwKY25abGNpMWpZVUF4TnpneE1Ea3pNVFV5TUI0WERUSTJNRFl4TURFeU1EVTFNbG9YRFRNMk1EWXdOekV5TURVMQpNbG93SkRFaU1DQUdBMVVFQXd3WmNtdGxNaTF6WlhKMlpYSXRZMkZBTVRjNE1UQTVNekUxTWpCWk1CTUdCeXFHClNNNDlBZ0VHQ0NxR1NNNDlBd0VIQTBJQUJDY3BKN0tQS1BYQTloWExwNHdaSW9uL05TYmNuT2ZEZDkyRUgxbmYKUG1mR0JRRXBIWExVMUJQMDNwODI5RjRJQTU5b0NVWEEvcmhGTHYwL29vWEtUTStqUWpCQU1BNEdBMVVkRHdFQgovd1FFQXdJQ3BEQVBCZ05WSFJNQkFmOEVCVEFEQVFIL01CMEdBMVVkRGdRV0JCUzdINDBCZ1RCNWx0QlQ0OUs4Cnkramd4ZnI3dWpBS0JnZ3Foa2pPUFFRREFnTklBREJGQWlBOVhSeUJZcEhJdzZxUGNxRkZMd3ZGdldoRDRmT0IKaFkrcFlnVjh3ekFuQ2dJaEFJL2E1OHpPMFJGVmZaQ3JSMkhMSWRTeUM2K0ZuaW5ndUoyL2p0Mi82dndVCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+    tokenSecretName: controller-mongostate-reader-token
+    remoteSecretName: agent-swarm-state
+    # `agents`, not crossplane-system - see the chart's values.yaml.
+    remoteSecretNamespace: agents

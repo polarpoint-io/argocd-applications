@@ -1,0 +1,17 @@
+chart:
+  name: ciso-assistant-postgres
+  path: apps/tooling/ciso-assistant-postgres/non-prod
+  url: git@github.com:polarpoint-io/argocd-applications.git
+  targetRevision: main
+  recurseDirectory: false
+  namespace: ciso-assistant
+
+labels:
+  service: tooling
+  app: ciso-assistant
+
+# Local wrapper chart (dependency on bitnami/postgresql), NOT a bare helm-repo
+# Application - the children-applications template names generated Applications
+# purely by `chart.name-env`, and toolhive-registry-postgres already claims
+# "postgresql-non-prod" (it also uses chart.name: postgresql). Wrapping like
+# postiz already does for its own bundled postgres avoids that name collision.

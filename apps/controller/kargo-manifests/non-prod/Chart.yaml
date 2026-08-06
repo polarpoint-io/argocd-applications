@@ -1,0 +1,4 @@
+apiVersion: v2
+name: kargo-manifests
+description: Kargo supporting manifests - ESO admin account secret, certificate (tailscale device 'promote')
+version: 0.1.0

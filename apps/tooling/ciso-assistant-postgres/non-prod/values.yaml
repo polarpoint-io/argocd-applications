@@ -1,0 +1,12 @@
+postgresql:
+  enabled: true
+  fullnameOverride: ciso-assistant-postgres
+  image:
+    repository: bitnamilegacy/postgresql
+  auth:
+    username: ciso-assistant
+    database: ciso-assistant
+    existingSecret: ciso-assistant-db
+  primary:
+    persistence:
+      size: 5Gi

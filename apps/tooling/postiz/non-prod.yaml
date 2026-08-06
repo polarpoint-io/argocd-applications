@@ -1,0 +1,60 @@
+chart:
+  name: postiz
+  path: apps/tooling/postiz/non-prod
+  url: git@github.com:polarpoint-io/argocd-applications.git
+  targetRevision: main
+  recurseDirectory: false
+  namespace: postiz
+
+labels:
+  service: tooling
+  app: postiz
+
+# NOTE: vendored from gitroomhq/postiz-helmchart (chart postiz-app 1.0.5)
+# with templates/postiz-secret.yaml REMOVED - the 'postiz-secrets' Secret
+# is owned by external-secrets (see postiz-manifests).
+
+values: |
+  fullnameOverride: postiz
+
+  image:
+    repository: ghcr.io/gitroomhq/postiz-app
+    tag: "latest"
+
+  env:
+    MAIN_URL: "https://schedule.polarpoint.io"
+    FRONTEND_URL: "https://schedule.polarpoint.io"
+    NEXT_PUBLIC_BACKEND_URL: "https://schedule.polarpoint.io/api"
+    BACKEND_INTERNAL_URL: "http://localhost:3000"
+    NX_ADD_PLUGINS: "false"
+    IS_GENERAL: "true"
+    TEMPORAL_WORKER_URL: "temporal-non-prod-frontend:7233"
+    TEMPORAL_ADDRESS: "temporal-non-prod-frontend:7233"
+
+  secrets: {}   # secret object removed from chart; ESO provides postiz-secrets
+
+  global:
+    security:
+      allowInsecureImages: true
+
+  postgresql:
+    enabled: true
+    fullnameOverride: postiz-postgresql
+    image:
+      repository: bitnamilegacy/postgresql
+    auth:
+      username: postiz
+      database: postiz
+      existingSecret: postiz-db
+    primary:
+      persistence:
+        size: 8Gi
+
+  redis:
+    enabled: true
+    fullnameOverride: postiz-redis
+    image:
+      repository: bitnamilegacy/redis
+    auth:
+      enabled: false
+    architecture: standalone

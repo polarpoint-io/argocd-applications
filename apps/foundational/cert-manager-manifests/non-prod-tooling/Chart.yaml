@@ -1,0 +1,4 @@
+apiVersion: v2
+name: cert-manager-manifests
+description: Issuers and certificates (Route53 DNS-01)
+version: 0.1.0

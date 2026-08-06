@@ -1,0 +1,6 @@
+secretStore: cluster-secrets-store
+awsAccessKeyID: AKIA4FNGZSXLDQERDR5O
+awsRegion: eu-west-1
+hostedZoneID: ZND0T184EWHJG
+acmeEmail: surj@polarpoint.io
+argocdHost: deploy.polarpoint.io

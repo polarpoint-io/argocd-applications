@@ -1,0 +1,68 @@
+# The manifests CISO Assistant needs alongside its upstream chart, expressed
+# as values for the shared helm-library-manifests chart instead of a
+# hand-written chart in this repo.
+#
+# What used to live at ./non-prod/ was three templates - two ExternalSecrets, a
+# Certificate, and the nginx TLS-proxy trio - which is the same shape as
+# postiz-manifests, backstage-manifests, toolhive-registry-manifests and the
+# rest. Verified equivalent before switching: rendering the library with these
+# values produces the same six objects as the old chart, byte-identical apart
+# from the wording of one comment, with all 31 nginx directives unchanged.
+chart:
+  name: ciso-assistant-manifests
+  path: .
+  url: git@github.com:polarpoint-io/helm-library-manifests.git
+  # Pin it. Several apps share this chart now, so tracking HEAD would move all
+  # of them together the moment the library changes.
+  targetRevision: v2.1.0
+  namespace: ciso-assistant
+
+labels:
+  service: tooling
+  app: ciso-assistant
+
+values: |
+  global:
+    secretStore:
+      name: cluster-secrets-store
+      kind: ClusterSecretStore
+    issuer: letsencrypt-dns01
+
+  externalSecrets:
+    - secretName: ciso-assistant-db
+      namespace: ciso-assistant
+      refreshInterval: 5m
+      data:
+        - secretKey: postgres-password
+          remoteRef: {key: ciso-assistant, property: db-password}
+        # bitnami's postgres chart reads `password`; the app reads
+        # `postgres-password`. Same value under two keys, deliberately.
+        - secretKey: password
+          remoteRef: {key: ciso-assistant, property: db-password}
+
+    - secretName: ciso-assistant-django
+      namespace: ciso-assistant
+      refreshInterval: 5m
+      data:
+        - secretKey: django-secret-key
+          remoteRef: {key: ciso-assistant, property: django-secret-key}
+
+  certificates:
+    - name: grc-tls
+      namespace: ciso-assistant
+      host: grc.polarpoint.io
+
+  tlsProxies:
+    - name: grc
+      namespace: ciso-assistant
+      host: grc.polarpoint.io
+      certSecret: grc-tls
+      # This app's Set-Cookie/session headers overflow nginx's default
+      # buffers, which surfaced as a 502 on /login rather than anything
+      # pointing at buffers.
+      largeHeaders: true
+      # Mirrors upstream's own Caddy routing: /api/* to the backend,
+      # everything else to the frontend.
+      routes:
+        - {path: "/api/", upstream: "http://ciso-assistant-backend:80"}
+        - {path: "/", upstream: "http://ciso-assistant-frontend:80", websocket: true}

@@ -1,0 +1,11 @@
+chart:
+  name: kargo-manifests
+  path: apps/controller/kargo-manifests/non-prod
+  url: git@github.com:polarpoint-io/argocd-applications.git
+  targetRevision: main
+  recurseDirectory: false
+  namespace: kargo
+
+labels:
+  service: controller
+  app: kargo

@@ -1,0 +1,4 @@
+apiVersion: v2
+name: tailscale-operator-manifests
+description: Supporting manifests for the Tailscale operator (oauth secret via ESO)
+version: 0.1.0

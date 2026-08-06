@@ -1,0 +1,17 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: route53-credentials
+  namespace: cert-manager
+spec:
+  refreshInterval: 5m
+  secretStoreRef:
+    name: {{ .Values.secretStore }}
+    kind: ClusterSecretStore
+  target:
+    name: route53-credentials
+  data:
+    - secretKey: secret-access-key
+      remoteRef:
+        key: route53-credentials
+        property: secret-access-key

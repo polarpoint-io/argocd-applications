@@ -1,0 +1,14 @@
+# Discovers new versions of the ciso-assistant OCI chart. OCI subscriptions
+# use the full chart path as repoURL with no separate `name` field.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: ciso-assistant
+  namespace: ciso-assistant-promotion
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  subscriptions:
+    - chart:
+        repoURL: oci://ghcr.io/intuitem/helm-charts/ce/ciso-assistant
+        semverConstraint: "*"

@@ -1,0 +1,4 @@
+apiVersion: v2
+name: toolhive-registry-manifests
+description: ToolHive Registry Server supporting manifests - ESO DB secret, TLS proxy (tailscale device 'mcp'), certificate
+version: 0.1.0

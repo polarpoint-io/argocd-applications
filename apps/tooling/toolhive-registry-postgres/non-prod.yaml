@@ -1,0 +1,33 @@
+chart:
+  name: postgresql
+  url: https://charts.bitnami.com/bitnami
+  targetRevision: "15.5.28"
+  namespace: toolhive-system
+
+labels:
+  service: tooling
+  app: toolhive-registry
+
+# Dedicated Postgres for the ToolHive Registry Server (hard chart requirement,
+# no embedded/sqlite option). Same bitnami/postgresql pattern already used by
+# backstage and postiz in this org.
+values: |
+  fullnameOverride: toolhive-registry-postgres
+  image:
+    repository: bitnamilegacy/postgresql
+  auth:
+    username: thv_user
+    database: toolhive_registry
+    existingSecret: toolhive-registry-db
+  primary:
+    persistence:
+      size: 4Gi
+    initdb:
+      scripts:
+        # thv_user owns the DB but that alone doesn't grant CREATEROLE, which
+        # the registry server's first migration needs (it CREATE ROLE's an
+        # internal 'toolhive_registry_server' grants-holder role). Without
+        # this, migration #1 fails with "permission denied to create role"
+        # every time, on a totally fresh DB - discovered 2026-08-03.
+        grant-createrole.sql: |
+          ALTER ROLE thv_user CREATEROLE;

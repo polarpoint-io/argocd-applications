@@ -1,0 +1,4 @@
+apiVersion: v2
+name: backstage-manifests
+description: Backstage supporting manifests - app-config, ESO secrets, TLS proxy (tailscale device 'platform'), certificate
+version: 0.2.0

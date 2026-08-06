@@ -1,0 +1,15 @@
+secretStore: cluster-secrets-store
+image: ghcr.io/polarpoint-io/holmesgpt-runbook-mcp:1.1.5
+
+# LLM provider - reuses the same Anthropic key already seeded for Holmes
+# itself (holmes-llm-keys/ANTHROPIC_API_KEY), stored separately here under
+# its own secrets-store entry since this is a distinct Deployment/secret.
+llmProvider: anthropic
+
+# Git provider - opens draft PRs with newly-drafted runbooks.
+gitProvider: github
+gitRunbookRepo: polarpoint-io/markdown-pol-docs
+gitBaseBranch: main
+
+confluenceRunbookSpace: RAID
+runbookPathPrefix: docs/technical-practices/monitoring-observability/runbooks

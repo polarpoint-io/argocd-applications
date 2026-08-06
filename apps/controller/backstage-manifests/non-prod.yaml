@@ -1,0 +1,11 @@
+chart:
+  name: backstage-manifests
+  path: apps/controller/backstage-manifests/non-prod
+  url: git@github.com:polarpoint-io/argocd-applications.git
+  targetRevision: main
+  recurseDirectory: false
+  namespace: platform
+
+labels:
+  service: platform
+  app: backstage

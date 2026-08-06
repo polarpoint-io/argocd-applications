@@ -1,0 +1,11 @@
+apiVersion: v2
+name: ciso-assistant-postgres
+description: Dedicated Postgres for CISO Assistant (wrapper chart to avoid the
+  chart.name-based Application-naming collision with other bitnami/postgresql
+  installs in this repo, e.g. toolhive-registry-postgres)
+version: 0.1.0
+dependencies:
+  - name: postgresql
+    version: 15.5.28
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled

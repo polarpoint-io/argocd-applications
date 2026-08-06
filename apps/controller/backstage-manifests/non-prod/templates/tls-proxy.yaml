@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-tls-proxy
+  namespace: platform
+data:
+  nginx.conf: |
+    events {}
+    http {
+      server {
+        listen 8443 ssl;
+        server_name {{ .Values.host }};
+        ssl_certificate /tls/tls.crt;
+        ssl_certificate_key /tls/tls.key;
+        client_max_body_size 100m;
+        location / {
+          proxy_pass http://{{ .Values.backstageService }}:7007;
+          proxy_set_header Host $host;
+          proxy_set_header X-Forwarded-Proto https;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+          proxy_http_version 1.1;
+          proxy_read_timeout 3600;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-tls-proxy
+  namespace: platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: platform-tls-proxy}
+  template:
+    metadata:
+      labels: {app: platform-tls-proxy}
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports: [{containerPort: 8443}]
+          volumeMounts:
+            - {name: conf, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf}
+            - {name: tls, mountPath: /tls, readOnly: true}
+      volumes:
+        - name: conf
+          configMap: {name: platform-tls-proxy}
+        - name: tls
+          secret: {secretName: platform-tls}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform
+  namespace: platform
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: platform
+spec:
+  selector: {app: platform-tls-proxy}
+  ports:
+    - {name: https, port: 443, targetPort: 8443}
