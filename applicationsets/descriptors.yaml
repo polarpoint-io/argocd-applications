@@ -25,6 +25,22 @@ metadata:
   name: descriptors
   namespace: argocd
 spec:
+  # Keeps today's deletion semantics. The ApplicationSet controller adds
+  # `resources-finalizer.argocd.argoproj.io` to every Application it generates
+  # unless this is set; none of the Applications the parents produced ever carried
+  # one. Without this, removing a descriptor stops meaning "orphan the workload"
+  # and starts meaning "delete the workload and everything it deployed" - and
+  # `prune: false` does not protect against it, because the deletion comes from the
+  # finalizer rather than from a sync.
+  #
+  # Found the hard way: a throwaway ApplicationSet used to verify this migration
+  # generated 40 Applications pointed at the same live resources as the real ones,
+  # each with that finalizer attached. Deleting it would have cascaded into
+  # cert-manager, tailscale-operator, kargo and ciso-assistant across three
+  # clusters. Turn cascade on deliberately later if it is wanted; do not inherit it
+  # by accident.
+  syncPolicy:
+    preserveResourcesOnDeletion: true
   goTemplate: true
   # Required fields fail loudly rather than rendering empty. A dropped
   # targetRevision once left every git-sourced app silently tracking HEAD; an
