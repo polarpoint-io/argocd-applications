@@ -47,7 +47,7 @@ customResources:
         oauth2Settings:
           - name: GitHub
             enabled: true
-            clientId: "REPLACE_ME_github_oauth_client_id"
+            clientId: "Ov23ligqCtLU257TJj2k"
             clientSecretSecretRef:
               name: grafana-github-oauth
               namespace: iac
