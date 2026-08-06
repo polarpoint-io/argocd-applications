@@ -1,4 +1,0 @@
-secretStore: cluster-secrets-store
-host: mcp.polarpoint.io
-issuer: letsencrypt-dns01
-registryService: toolhive-registry   # ClusterIP svc, port 8080

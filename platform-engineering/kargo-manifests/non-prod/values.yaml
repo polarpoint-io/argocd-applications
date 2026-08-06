@@ -1,3 +1,0 @@
-secretStore: cluster-secrets-store
-host: promote.polarpoint.io
-issuer: letsencrypt-dns01
