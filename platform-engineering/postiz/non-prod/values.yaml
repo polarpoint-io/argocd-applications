@@ -67,7 +67,9 @@ postgresql:
   enabled: true
   auth:
     username: postiz
-    password: postiz-password
+    # No password here. The Application supplies auth.existingSecret: postiz-db,
+    # backed by an ExternalSecret, so this default was never used - but a hardcoded
+    # password is a trap for anyone who renders this chart without that override.
     database: postiz
   service:
     ports:
@@ -77,7 +79,8 @@ postgresql:
 redis:
   enabled: true
   auth:
-    password: postiz-redis-password
+    # The Application sets auth.enabled: false, so this default was never used.
+    enabled: false
   master:
     service:
       ports:
