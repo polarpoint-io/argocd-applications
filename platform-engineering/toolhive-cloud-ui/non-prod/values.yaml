@@ -1,0 +1,94 @@
+# ToolHive Cloud UI - the browser front end for the MCP registry.
+#
+# Declared in argocd-core as toolhive-cloud-ui-non-prod, in the same namespace
+# as the registry server it reads from. Reachable at registry.polarpoint.io;
+# the registry's own API stays on mcp.polarpoint.io.
+#
+# Chart and image both come from stacklok, pinned together at 0.6.2 / v0.6.2 -
+# the chart's default image tag tracks its own appVersion, so bumping one
+# without the other is the failure mode to avoid.
+
+fullnameOverride: toolhive-cloud-ui
+
+replicaCount: 1
+
+image:
+  cloudUiImage: ghcr.io/stacklok/toolhive-cloud-ui:v0.6.2
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+env:
+  - name: NODE_ENV
+    value: production
+
+  # The registry server, same namespace. fullnameOverride there is
+  # "toolhive-registry" and its Service listens on 8080.
+  - name: API_BASE_URL
+    value: http://toolhive-registry:8080
+
+  # Better Auth builds its callback URLs from this, so it must be the external
+  # address users actually arrive on - not the Service, not localhost. A
+  # mismatch shows up as a redirect loop after a successful GitHub login.
+  - name: BETTER_AUTH_URL
+    value: https://registry.polarpoint.io
+
+  # Dex. The app appends /.well-known/openid-configuration and configures
+  # itself from whatever it finds, so this has to match Dex's own `issuer`
+  # exactly - Dex rejects requests arriving under any other name.
+  - name: OIDC_ISSUER_URL
+    value: https://auth.polarpoint.io
+
+  # Not a secret: it is the staticClients id in Dex's config, and it travels in
+  # the authorization URL in plain sight.
+  - name: OIDC_CLIENT_ID
+    value: toolhive-cloud-ui
+
+  # No DATABASE_URL, so Better Auth keeps sessions in encrypted cookies rather
+  # than Postgres. Upstream notes this can overflow on providers that issue
+  # very large tokens - Azure AD in particular. Dex's tokens are small, so this
+  # holds; revisit if the connector ever changes.
+
+# OIDC_CLIENT_SECRET and BETTER_AUTH_SECRET, from ESO. The client secret is
+# read from the same key Dex reads, so the two ends cannot drift apart.
+envFrom:
+  - secretRef:
+      name: toolhive-cloud-ui-auth
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# The image already runs as 1001; stated here so the pod is rejected rather
+# than silently rescheduled if that ever changes upstream.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1001
+  capabilities:
+    drop: ["ALL"]
+  # Next.js writes its prerender cache under .next at runtime, so the root
+  # filesystem cannot be read-only. Upstream's chart defaults this to false for
+  # the same reason.
+  readOnlyRootFilesystem: false
+
+autoscaling:
+  enabled: false
+
+serviceAccount:
+  create: false

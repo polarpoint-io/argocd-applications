@@ -1,0 +1,121 @@
+# Dex - the OIDC issuer this estate did not have.
+#
+# Declared in argocd-core as dex-non-prod. Issuer: https://auth.polarpoint.io
+#
+# It exists because toolhive-cloud-ui needs OIDC and GitHub does not speak it.
+# GitHub is a plain OAuth2 provider for user login - github.com/.well-known/
+# openid-configuration returns 403, and its only OIDC issuer,
+# token.actions.githubusercontent.com, is Actions workload identity and cannot
+# log a person in. Dex sits in between: OIDC to the app, OAuth2 to GitHub.
+#
+# It is also the host argocd's own oidc.config is already stubbed against, so
+# ArgoCD SSO can point here later without moving anything.
+
+fullnameOverride: dex
+
+# Single replica. Sessions live in Kubernetes CRDs rather than pod memory, so
+# this is about capacity, not durability - a restart does not sign anyone out.
+replicaCount: 1
+
+config:
+  # Must match exactly what clients use, character for character. Dex publishes
+  # this in its discovery document and rejects requests that arrive under any
+  # other name, so it has to be the external URL, not the Service.
+  issuer: https://auth.polarpoint.io
+
+  # CRD-backed storage. The chart's default RBAC already grants list/create on
+  # customresourcedefinitions plus full access to dex.coreos.com in this
+  # namespace, so Dex creates its own CRDs on first start. No PVC, nothing
+  # pinned to a node, and refresh tokens survive a restart - unlike the
+  # in-memory default, where every restart is a forced re-login.
+  storage:
+    type: kubernetes
+    config:
+      inCluster: true
+
+  web:
+    http: 0.0.0.0:5556
+
+  # TLS is terminated by the nginx proxy in front, not here.
+  telemetry:
+    http: 0.0.0.0:5558
+
+  # One click fewer on every login. The consent screen adds nothing when the
+  # only clients are ones we deployed ourselves.
+  oauth2:
+    skipApprovalScreen: true
+
+  connectors:
+    - type: github
+      id: github
+      name: GitHub
+      config:
+        # Dex runs os.ExpandEnv over its whole config, so $VAR here is filled
+        # from the envFrom secret below rather than being committed.
+        clientID: $GITHUB_CLIENT_ID
+        clientSecret: $GITHUB_CLIENT_SECRET
+        # Must match the callback URL registered on the GitHub OAuth app
+        # exactly. GitHub compares the full string.
+        redirectURI: https://auth.polarpoint.io/callback
+        # Only members of the org get in. Without this, any GitHub account on
+        # the internet can authenticate - the connector does not restrict by
+        # default.
+        orgs:
+          - name: polarpoint-io
+        # Team slugs rather than display names, so group claims stay stable
+        # when someone renames a team.
+        teamNameField: slug
+
+  staticClients:
+    - id: toolhive-cloud-ui
+      name: ToolHive Cloud UI
+      # secretEnv rather than secret: the value comes from the same ESO key the
+      # UI reads, so the two cannot drift apart.
+      secretEnv: TOOLHIVE_CLOUD_UI_CLIENT_SECRET
+      redirectURIs:
+        # Better Auth's genericOAuth plugin builds this path from the hardcoded
+        # provider id "oidc". Changing either end breaks the callback.
+        - https://registry.polarpoint.io/api/auth/oauth2/callback/oidc
+
+# GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET and TOOLHIVE_CLOUD_UI_CLIENT_SECRET,
+# from ESO. See the dex-non-prod extraSources block in argocd-core.
+envFrom:
+  - secretRef:
+      name: dex-github
+
+service:
+  ports:
+    http:
+      port: 5556
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# Default true, stated explicitly because Kubernetes storage does not work
+# without it - Dex cannot create its CRDs on first start.
+rbac:
+  create: true
+  createClusterScoped: true
+
+# No Ingress in this org; auth.polarpoint.io comes from the nginx TLS proxy in
+# helm-library-manifests, carried on this Application as an extraSource.
+ingress:
+  enabled: false
