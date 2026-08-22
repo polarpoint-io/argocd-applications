@@ -1,0 +1,123 @@
+# MiroFish-Offline - multi-agent opinion simulation, entirely on local models.
+#
+# Chart: git@github.com:polarpoint-io/helm-mirofish.git // charts/mirofish-offline
+# Declared in argocd-core as mirofish-non-prod-multitenant.
+#
+# Four workloads: a Flask API, an nginx-served SPA, Neo4j for the knowledge
+# graph, and Ollama for inference. Nothing leaves the cluster.
+
+# Objects become mirofish-api, mirofish-web, mirofish-neo4j, mirofish-ollama
+# rather than carrying the Application name twice over.
+fullnameOverride: mirofish
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+# local-path is node-local disk under /opt/local-path-provisioner. Two things
+# follow. Every PVC here is pinned to whichever node bound it first, so the API
+# (Recreate strategy, ReadWriteOnce) must come back to that same node - a
+# drained node means a Pending pod, not a rescheduled one. And the sizes below
+# are consuming a real node's /opt rather than a SAN, which is why they are well
+# under the chart's defaults.
+global:
+  storageClass: local-path
+
+# ---------------------------------------------------------------------------
+# Ollama - CPU inference
+# ---------------------------------------------------------------------------
+ollama:
+  gpu:
+    # No device plugin on multitenant. This is the single decision that sets
+    # everything else below: the chart's default qwen2.5:32b needs a GPU to
+    # finish a simulation this side of tomorrow, so the model drops to 7b.
+    enabled: false
+
+  models:
+    chat: qwen2.5:7b
+    embedding: nomic-embed-text
+
+  # ~4.7GB of weights, plus the embedding model, plus room to pull a
+  # replacement alongside the current one rather than deleting first.
+  persistence:
+    size: 20Gi
+
+  # CPU inference holds the whole model in RAM; there is no VRAM to offload to.
+  resources:
+    requests:
+      cpu: "2"
+      memory: 8Gi
+    limits:
+      memory: 12Gi
+
+  extraEnv:
+    # Default is 4. Every parallel request needs its own KV cache in the same
+    # RAM the weights already occupy, and on CPU the cores are the bottleneck
+    # long before the memory is.
+    - name: OLLAMA_NUM_PARALLEL
+      value: "2"
+
+# ---------------------------------------------------------------------------
+# Application
+# ---------------------------------------------------------------------------
+config:
+  # Must match ollama.models.* above - one says what gets pulled, the other what
+  # the app asks for. The chart warns on a mismatch at install time.
+  llmModel: qwen2.5:7b
+  embeddingModel: nomic-embed-text
+
+  # llm-api-key and flask-secret-key, from ESO. The API key is required by the
+  # OpenAI client and ignored by Ollama; the Flask key must be stable, because
+  # the chart otherwise mints a new one on every reconcile under `helm template`,
+  # which is the mode ArgoCD renders in.
+  existingSecret: mirofish-secrets
+
+api:
+  # Uploaded documents, generated personas, simulation output and reports. The
+  # only irreplaceable data here - the PVC carries helm.sh/resource-policy: keep.
+  persistence:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 4Gi
+
+web:
+  # Stateless, and the only tier that can have more than one replica.
+  replicaCount: 2
+
+neo4j:
+  auth:
+    existingSecret: mirofish-neo4j
+    existingSecretPasswordKey: neo4j-password
+  persistence:
+    size: 20Gi
+  # Heap plus page cache must stay under the memory limit with room for the JVM
+  # itself. Page cache is what makes graph traversal fast, so it gets what is
+  # left after heap rather than the other way round.
+  heap:
+    initialSize: 512m
+    maxSize: 1g
+  pagecache:
+    size: 1g
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+# ---------------------------------------------------------------------------
+# Exposure
+# ---------------------------------------------------------------------------
+# No Ingress in this org. simulate.polarpoint.io is served by the nginx TLS
+# proxy from helm-library-manifests, carried on this Application as an
+# extraSource, with tailscale doing the L4 and cert-manager the certificate.
+ingress:
+  enabled: false
+
+# NetworkPolicies are off, matching the rest of the estate. The chart can render
+# a default-deny set (networkPolicy.enabled) if this cluster ever adopts them.
+networkPolicy:
+  enabled: false
