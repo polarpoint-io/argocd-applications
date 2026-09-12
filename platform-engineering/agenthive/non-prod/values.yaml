@@ -1,0 +1,53 @@
+# AgentHive - shared, reviewed memory graph for a team of coding agents.
+#
+# Chart: git@github.com:polarpoint-io/agenthive.git // helm/agenthive
+# Declared in argocd-core as agenthive-non-prod.
+#
+# SQLite + single replica: this is a small internal tool, not a
+# multi-tenant service, and the chart itself refuses more than one
+# replica against SQLite (see the chart's own _helpers.tpl guardrail).
+# Move to database.type=postgres here (plus a real DATABASE_URL secret)
+# if that ever stops being true.
+
+fullnameOverride: agenthive
+
+sqlite:
+  persistence:
+    size: 2Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+# Personal tokens only for now. Flip this on once there's a real Azure AD
+# App Registration for AgentHive - tenantId/clientId are not secret and can
+# move inline here; clientSecret stays in ESO like every other credential
+# in this repo (see the externalSecrets block on the Application in
+# argocd-core, once this is turned on).
+auth:
+  azureAd:
+    enabled: false
+    # tenantId: ...
+    # clientId: ...
+    # existingSecret: agenthive-azure-ad
+    # redirectUri: https://hive.polarpoint.io/auth/azure/callback
+
+# ---------------------------------------------------------------------------
+# Exposure
+# ---------------------------------------------------------------------------
+# No Ingress in this org - hive.polarpoint.io is served by the nginx
+# TLS proxy from helm-library-manifests, carried on this Application as an
+# extraSource (see argocd-core), with tailscale doing the L4 and
+# cert-manager the certificate - same pattern as mirofish/toolhive-cloud-ui.
+ingress:
+  enabled: false
+
+networkPolicy:
+  enabled: false
