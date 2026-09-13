@@ -11,6 +11,18 @@
 
 fullnameOverride: agenthive
 
+# Chart.yaml's appVersion is stuck at "1.0.0" as of v1.6.0 (a
+# semantic-release-helm3 misconfiguration, fixed in agenthive's
+# .releaserc.json going forward but not retroactively - see that repo's
+# 6d8abd2). Pin the main image tag explicitly rather than rely on the
+# chart's `.Values.image.tag | default .Chart.AppVersion` fallback,
+# which right now would resolve to the old, already-fixed-once
+# non-numeric-USER v1.0.0 image. Safe to drop once a release publishes a
+# correct appVersion again. (ui.image.tag gets the same pin further down,
+# next to the rest of the ui.* block.)
+image:
+  tag: "1.6.0"
+
 sqlite:
   persistence:
     size: 2Gi
@@ -51,3 +63,30 @@ ingress:
 
 networkPolicy:
   enabled: false
+
+# ---------------------------------------------------------------------------
+# Standalone review UI
+# ---------------------------------------------------------------------------
+# Split out to its own container (see agenthive's ui/Dockerfile /
+# README.md's "Splitting the review UI into its own container") rather
+# than the app's built-in /ui, same reasoning as the "no Ingress" comment
+# above - exposed at hive-ui.polarpoint.io via its own tlsProxy entry
+# (see argocd-core's agenthive-non-prod extraSources). publicUrl/apiUrl
+# below are what make Azure AD sign-in and the API's CORS_ORIGIN line up
+# once auth.azureAd.enabled is turned on above.
+ui:
+  enabled: true
+  # Same appVersion caveat as the top-level image.tag above.
+  image:
+    tag: "1.6.0"
+  ingress:
+    enabled: false
+  apiUrl: https://hive.polarpoint.io
+  publicUrl: https://hive-ui.polarpoint.io
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
