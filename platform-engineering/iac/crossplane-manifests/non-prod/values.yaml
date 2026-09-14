@@ -38,6 +38,23 @@ customResources:
       package: xpkg.upbound.io/upbound/provider-family-aws:v1.18.0
       packagePullPolicy: IfNotPresent
       revisionActivationPolicy: Automatic
+  # In-family provider for Route53: provider-family-aws only carries the
+  # shared ProviderConfig CRD, not any service resources - each AWS service
+  # (route53, ec2, s3, ...) ships its CRDs in its own package that depends on
+  # the family provider. Needed for the route53.aws.upbound.io/v1beta1 Record
+  # MRs declared alongside agenthive's certificates/tlsProxies in argocd-core.
+  # Version pinned to match the family provider above; Upbound's own package
+  # manager may resolve a newer provider-family-aws as a transitive dependency
+  # of this package - that's expected and documented as safe to ignore.
+  - apiVersion: pkg.crossplane.io/v1
+    kind: Provider
+    metadata:
+      name: upbound-provider-aws-route53
+      annotations: {argocd.argoproj.io/sync-wave: "1"}
+    spec:
+      package: xpkg.upbound.io/upbound/provider-aws-route53:v1.18.0
+      packagePullPolicy: IfNotPresent
+      revisionActivationPolicy: Automatic
   - apiVersion: aws.upbound.io/v1beta1
     kind: ProviderConfig
     metadata:
