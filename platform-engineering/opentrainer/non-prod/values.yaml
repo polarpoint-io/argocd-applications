@@ -1,0 +1,44 @@
+# Mirrors kubernetes/deployment.yaml in the opentrainer repo itself (that file is the
+# generic self-hosting path for anyone running `kubectl apply -k kubernetes/`; this chart
+# is the polarpoint-specific GitOps version of the same two-container pod).
+
+fullnameOverride: opentrainer
+
+replicaCount: 1
+
+api:
+  image:
+    repository: ghcr.io/bainss/opentrainer-api
+    tag: edge
+    pullPolicy: IfNotPresent
+  # Everything in .env.example (INVITE_ONLY, ADMIN_UIDS, FIRST_USER_ADMIN, ALLOW_GUEST,
+  # BRAND_*, the push keys, ...) is set here per-environment by the Application that
+  # renders this chart (see argocd-core/non-prod-aoa-values.yaml) rather than hardcoded
+  # with a default here — same reasoning as RP_ID/ORIGIN below.
+  env:
+    PORT: "3000"
+    DATA_DIR: /data
+    RP_ID: ""
+    ORIGIN: ""
+  resources:
+    requests:
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+web:
+  image:
+    repository: ghcr.io/bainss/opentrainer-web
+    tag: edge
+    pullPolicy: IfNotPresent
+  # Not the image's default 80 - see kubernetes/deployment.yaml's comment on
+  # net.ipv4.ip_unprivileged_port_start.
+  nginxPort: 8080
+  resources:
+    requests:
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+persistence:
+  size: 2Gi

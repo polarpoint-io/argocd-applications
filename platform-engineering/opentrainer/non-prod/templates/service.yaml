@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "opentrainer.fullname" . }}
+  labels:
+    {{- include "opentrainer.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: web
+      port: 80
+      protocol: TCP
+      targetPort: web
+  selector:
+    app: {{ include "opentrainer.fullname" . }}

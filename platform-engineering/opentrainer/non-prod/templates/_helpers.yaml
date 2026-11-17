@@ -1,0 +1,17 @@
+{{/*
+Create a default fully qualified app name, same convention as the other charts in this
+repo (postiz, dex, ...).
+*/}}
+{{- define "opentrainer.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+
+{{- define "opentrainer.labels" -}}
+app: {{ include "opentrainer.fullname" . }}
+helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}

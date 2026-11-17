@@ -1,0 +1,8 @@
+apiVersion: v2
+name: opentrainer
+description: openGym / PolarPoint OpenTrainer self-hosted gym & body-weight tracker PWA
+type: application
+version: 0.1.0
+appVersion: "1.4.0"
+sources:
+  - https://github.com/bainss/opentrainer
